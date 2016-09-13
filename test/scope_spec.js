@@ -253,6 +253,80 @@ describe("Scope", function () {
       expect(scope.counter).toBe(2);
     });
 
+
+    it("executes $evalAsync'ed function later in the same cycle", () => {
+      scope.aValue = [1, 2, 3];
+      scope.asyncEvaluated = false;
+      scope.asyncEvaluatedImmediately = false;
+
+      scope.$watch(
+        function (scope) { return scope.aValue; },
+        function (newValue, oldValue, scope) {
+          scope.$evalAsync(function (scope) {
+            scope.asyncEvaluated = true;
+          });
+          scope.asyncEvaluatedImmediately = scope.asyncEvaluated;
+        }
+      );
+
+      scope.$digest();
+      expect(scope.asyncEvaluated).toBe(true);
+      expect(scope.asyncEvaluatedImmediately).toBe(false);
+    });
+
+    it('excecutes $evalAsync functions added by watch functions', () => {
+      scope.aValue = [1, 2, 3];
+      scope.asyncEvaluated = false;
+
+      scope.$watch(
+        function (scope) {
+          if (!scope.asyncEvaluated) {
+            scope.$evalAsync(function (scope) {
+              scope.asyncEvaluated = true;
+            });
+          }
+        },
+        function (newValue, oldValue, scope) { }
+      );
+
+      scope.$digest();
+      expect(scope.asyncEvaluated).toBe(true);
+
+    });
+
+    it('executes $evalAsync functions even when not dirty', () => {
+      scope.aValue = [1, 2, 3];
+      scope.asyncEvaluatedTimes = 0;
+
+      scope.$watch(
+        function (scope) {
+          if (scope.asyncEvaluatedTimes < 2) {
+            scope.$evalAsync(function (scope) {
+              scope.asyncEvaluatedTimes++;
+            });
+          }
+        },
+        function (newValue, oldValue, scope) { }
+      );
+
+      scope.$digest();
+      expect(scope.asyncEvaluatedTimes).toBe(2);
+
+    });
+
+    it("eventually halts $evalAsync(s) added by watches", function(){
+      scope.aValue = [1,2,3];
+      scope.$watch(
+        function(scope){
+          scope.$evalAsync(function(){});
+          return scope.aValue;
+        },
+        function(newVal, oldVal, scope){}
+      );
+
+      expect(function(){scope.$digest()}).toThrow();
+    });
+
   });
 
 });
