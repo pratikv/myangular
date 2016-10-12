@@ -6,6 +6,7 @@ class Scope {
     this.$$watchers = [];
     this.$$lastDirtyWatch = null;
     this.$$asyncQueue = [];
+    this.$$phase = null;
   }
 
   $watch(watchFn, listenerFn, valueEq) {
@@ -42,6 +43,7 @@ class Scope {
     var ttl = 10;
     var dirty;
     this.$$lastDirtyWatch = null;
+    this.$beginPhase('$digest');
     do {
       while(this.$$asyncQueue.length){
         var asyncTask = this.$$asyncQueue.shift();
@@ -49,9 +51,11 @@ class Scope {
       }
       dirty = this.$$digestOnce();
       if ( ( dirty || this.$$asyncQueue.length ) && !(ttl--)) {
+        this.$clearPhase();
         throw "10 digest iterations reached";
       }
     } while (dirty || this.$$asyncQueue.length);
+    this.$clearPhase();
   }
 
   $$areEqual(newValue, oldValue, valueEq) {
@@ -69,14 +73,35 @@ class Scope {
 
   $apply(expr){
     try {
+      this.$beginPhase('$apply');
       return this.$eval(expr);
     } finally {
+      this.$clearPhase();
       this.$digest();
     }
   }
 
   $evalAsync(expr){
+    var _this = this;
+    if(!_this.$$phase && !_this.$$asyncQueue.length){
+      setTimeout(function() {
+        if(_this.$$asyncQueue.length){
+          _this.$digest();
+        }
+      }, 0);
+    }
     this.$$asyncQueue.push({scope : this, expression : expr} );
+  }
+
+  $beginPhase(phase){
+    if(this.$$phase){
+      throw this.$$phase + ' already in progress';
+    }
+    this.$$phase = phase;
+  }
+
+  $clearPhase(){
+    this.$$phase = null;
   }
 
 }
